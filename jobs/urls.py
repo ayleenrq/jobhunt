@@ -7,4 +7,5 @@ urlpatterns = [
     path('saved/', views.SavedJobListView.as_view(), name='saved-job-list'),
     path('saved/<int:pk>/', views.SavedJobDetailView.as_view(), name='saved-job-detail'),
     path('alerts/', views.JobAlertListView.as_view(), name='job-alert-list'),
+    path('auth/register/', views.RegisterView.as_view(), name='register'),
 ]

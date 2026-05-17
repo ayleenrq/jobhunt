@@ -4,7 +4,8 @@ from rest_framework.views import APIView
 from django.db.models import Q
 from .models import Job, SavedJob, JobAlert
 from .serializers import JobSerializer, SavedJobSerializer, JobAlertSerializer
-
+from django.contrib.auth.models import User
+from rest_framework import status
 
 class JobListView(generics.ListAPIView):
     serializer_class = JobSerializer
@@ -67,3 +68,35 @@ class JobAlertListView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+        
+        
+class RegisterView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        email = request.data.get('email', '')
+
+        if not username or not password:
+            return Response(
+                {'error': 'Username dan password wajib diisi'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if User.objects.filter(username=username).exists():
+            return Response(
+                {'error': 'Username sudah dipakai'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user = User.objects.create_user(
+            username=username,
+            password=password,
+            email=email
+        )
+
+        return Response(
+            {'message': f'User {user.username} berhasil dibuat'},
+            status=status.HTTP_201_CREATED
+        )
