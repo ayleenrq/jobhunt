@@ -2,79 +2,66 @@ import requests
 from .models import Job, Company
 
 
-def scrape_glints():
+def scrape_remoteok():
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
 
-    keywords = ['django', 'python', 'fullstack', 'backend', 'frontend']
-    jobs_saved = 0
+    url = 'https://remoteok.com/api'
 
-    for keyword in keywords:
-        url = 'https://glints.com/api/opportunities/search'
-        payload = {
-            "searchQuery": keyword,
-            "countryCode": "ID",
-            "loopback_filter": {
-                "limit": 20,
-                "where": {
-                    "status": "PUBLISHED"
-                }
-            }
-        }
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        data = response.json()
 
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-            data = response.json()
-            opportunities = data.get('data', {}).get('opportunities', [])
+        # item pertama bukan job, skip
+        jobs = [item for item in data if item.get('id') and item.get('position')]
 
-            for job in opportunities:
-                try:
-                    company_data = job.get('company', {})
-                    company_name = company_data.get('name', 'Unknown')
-                    city = job.get('cityName', '')
-                    country = job.get('countryCode', 'ID')
-                    location = f"{city}, {country}" if city else country
+        jobs_saved = 0
 
-                    company, _ = Company.objects.get_or_create(
-                        name=company_name,
-                        defaults={'location': location}
-                    )
+        for item in jobs:
+            try:
+                company_name = item.get('company', 'Unknown')
+                location = item.get('location', 'Remote')
 
-                    job_type_raw = job.get('type', '').lower()
-                    if 'intern' in job_type_raw:
-                        job_type = 'internship'
-                    elif 'part' in job_type_raw:
-                        job_type = 'parttime'
-                    else:
-                        job_type = 'fulltime'
+                company, _ = Company.objects.get_or_create(
+                    name=company_name,
+                    defaults={
+                        'location': location,
+                        'logo_url': item.get('company_logo', ''),
+                    }
+                )
 
-                    source_url = f"https://glints.com/id/opportunities/jobs/{job.get('id', '')}"
-
-                    _, created = Job.objects.get_or_create(
-                        source_url=source_url,
-                        defaults={
-                            'title': job.get('title', ''),
-                            'company': company,
-                            'location': location,
-                            'job_type': job_type,
-                            'source_platform': 'glints',
-                            'skills': [keyword],
-                            'description': job.get('shortDescription', ''),
-                        }
-                    )
-
-                    if created:
-                        jobs_saved += 1
-
-                except Exception as e:
-                    print(f'Error parsing job: {e}')
+                source_url = item.get('url', '')
+                if not source_url:
                     continue
 
-        except Exception as e:
-            print(f'Error scraping keyword {keyword}: {e}')
-            continue
+                tags = item.get('tags', [])
 
-    print(f'Scraping selesai! {jobs_saved} jobs baru disimpan.')
-    return jobs_saved
+                _, created = Job.objects.get_or_create(
+                    source_url=source_url,
+                    defaults={
+                        'title': item.get('position', ''),
+                        'company': company,
+                        'location': location,
+                        'job_type': 'remote',
+                        'source_platform': 'remoteok',
+                        'skills': tags,
+                        'description': item.get('description', '')[:1000],
+                        'salary_min': item.get('salary_min') or None,
+                        'salary_max': item.get('salary_max') or None,
+                    }
+                )
+
+                if created:
+                    jobs_saved += 1
+
+            except Exception as e:
+                print(f'Error parsing job: {e}')
+                continue
+
+        print(f'Scraping selesai! {jobs_saved} jobs baru disimpan.')
+        return jobs_saved
+
+    except Exception as e:
+        print(f'Error: {e}')
+        return 0

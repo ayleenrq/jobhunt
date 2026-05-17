@@ -22,7 +22,8 @@ class JobListView(generics.ListAPIView):
             queryset = queryset.filter(
                 Q(title__icontains=q) |
                 Q(description__icontains=q) |
-                Q(company__name__icontains=q)
+                Q(company__name__icontains=q) |
+                Q(skills__contains=[q])
             )
         if job_type:
             queryset = queryset.filter(job_type=job_type)
